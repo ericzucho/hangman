@@ -131,6 +131,11 @@ Here's this module being exercised from an iex session:
 
   """
 
+  defmodule GameState do
+    defstruct word: Hangman.Dictionary.random_word, lives_remaining: 10, correct_letters: [], incorrect_letters: []
+  end
+
+
   @type state :: map
   @type ch    :: binary
   @type optional_ch :: ch | nil
@@ -142,6 +147,8 @@ Here's this module being exercised from an iex session:
 
   @spec new_game :: state
   def new_game do
+    game_state = %GameState{}
+    game_state
   end
 
 
@@ -152,6 +159,8 @@ Here's this module being exercised from an iex session:
   """
   @spec new_game(binary) :: state
   def new_game(word) do
+    game_state = %GameState{ word: String.downcase(word) }
+    game_state
   end
 
 
@@ -177,6 +186,22 @@ Here's this module being exercised from an iex session:
 
   @spec make_move(state, ch) :: { state, atom, optional_ch }
   def make_move(state, guess) do
+  cond do
+    String.contains?(state.word, guess) ->
+       new_state = %GameState{state | correct_letters: state.correct_letters ++ [guess]}
+       unique_characters_list = String.codepoints state.word
+       unique_characters = Enum.uniq(unique_characters_list)
+       cond do
+         Enum.count(unique_characters) == Enum.count(new_state.correct_letters) -> {new_state, :won, guess}
+         Enum.count(unique_characters) > Enum.count(new_state.correct_letters) -> {new_state, :good_guess, guess}
+       end
+    not String.contains?(state.word, guess) ->
+       new_state = %GameState{state | incorrect_letters: state.incorrect_letters ++ [guess], lives_remaining: state.lives_remaining - 1}
+       cond do
+         new_state.lives_remaining == 0 -> {new_state, :lost, guess}
+         new_state.lives_remaining > 0 -> {new_state, :bad_guess, guess}
+       end
+    end
   end
 
 
@@ -187,6 +212,7 @@ Here's this module being exercised from an iex session:
   """
   @spec word_length(state) :: integer
   def word_length(%{ word: word }) do
+    String.length(word)
   end
 
   @doc """
@@ -199,6 +225,7 @@ Here's this module being exercised from an iex session:
 
   @spec letters_used_so_far(state) :: [ binary ]
   def letters_used_so_far(state) do
+    state.correct_letters ++ state.incorrect_letters
   end
 
   @doc """
@@ -211,6 +238,7 @@ Here's this module being exercised from an iex session:
 
   @spec turns_left(state) :: integer
   def turns_left(state) do
+    state.lives_remaining
   end
 
   @doc """
@@ -224,6 +252,14 @@ Here's this module being exercised from an iex session:
 
   @spec word_as_string(state, boolean) :: binary
   def word_as_string(state, reveal \\ false) do
+    word_with_strings = Regex.replace(~r/([a-z])/,state.word,"\\1 ") |> String.trim
+    cond do
+      reveal -> word_with_strings
+      not reveal ->
+        codepoints = String.codepoints state.word
+        codepoints_with_underscore = Enum.map(codepoints,fn codepoint -> replace_with_underscore_if_not_guessed(codepoint,state.correct_letters) end)
+        (to_string codepoints_with_underscore) |> String.trim
+    end
   end
 
   ###########################
@@ -231,5 +267,12 @@ Here's this module being exercised from an iex session:
   ###########################
 
   # Your private functions go here
+
+  defp replace_with_underscore_if_not_guessed(character,correct_letters) do
+    cond do
+      Enum.member?(correct_letters,character) -> character <> " "
+      not Enum.member?(correct_letters,character) -> "_ "
+    end
+  end
 
  end
