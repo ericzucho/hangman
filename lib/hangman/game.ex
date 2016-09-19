@@ -186,21 +186,10 @@ Here's this module being exercised from an iex session:
 
   @spec make_move(state, ch) :: { state, atom, optional_ch }
   def make_move(state, guess) do
-  cond do
-    String.contains?(state.word, guess) ->
-       new_state = %GameState{state | correct_letters: state.correct_letters ++ [guess]}
-       unique_characters_list = String.codepoints state.word
-       unique_characters = Enum.uniq(unique_characters_list)
-       cond do
-         Enum.count(unique_characters) == Enum.count(new_state.correct_letters) -> {new_state, :won, guess}
-         Enum.count(unique_characters) > Enum.count(new_state.correct_letters) -> {new_state, :good_guess, guess}
-       end
-    not String.contains?(state.word, guess) ->
-       new_state = %GameState{state | incorrect_letters: state.incorrect_letters ++ [guess], lives_remaining: state.lives_remaining - 1}
-       cond do
-         new_state.lives_remaining == 0 -> {new_state, :lost, guess}
-         new_state.lives_remaining > 0 -> {new_state, :bad_guess, guess}
-       end
+  if String.contains?(state.word, guess) do
+       change_state_good_guess(state,guess)
+    else
+       change_state_bad_guess(state,guess)
     end
   end
 
@@ -252,13 +241,16 @@ Here's this module being exercised from an iex session:
 
   @spec word_as_string(state, boolean) :: binary
   def word_as_string(state, reveal \\ false) do
-    word_with_strings = Regex.replace(~r/([a-z])/,state.word,"\\1 ") |> String.trim
+    word_with_spaces = Regex.replace(~r/([a-z])/,state.word,"\\1 ") |> String.trim
     cond do
-      reveal -> word_with_strings
+      reveal -> word_with_spaces
       not reveal ->
-        codepoints = String.codepoints state.word
-        codepoints_with_underscore = Enum.map(codepoints,fn codepoint -> replace_with_underscore_if_not_guessed(codepoint,state.correct_letters) end)
-        (to_string codepoints_with_underscore) |> String.trim
+        codepoints =
+        state.word
+        |> String.codepoints
+        |> Enum.map(fn codepoint -> replace_with_underscore_if_not_guessed(codepoint,state.correct_letters) end)
+        |> to_string
+        |> String.trim
     end
   end
 
@@ -273,6 +265,28 @@ Here's this module being exercised from an iex session:
       Enum.member?(correct_letters,character) -> character <> " "
       not Enum.member?(correct_letters,character) -> "_ "
     end
+  end
+
+  defp change_state_good_guess(state,guess) do
+    new_state = %GameState{state | correct_letters: state.correct_letters ++ [guess]}
+       unique_characters =
+         state.word
+         |> String.codepoints
+         |> Enum.uniq
+       cond do
+         Enum.count(unique_characters) == Enum.count(new_state.correct_letters) -> {new_state, :won, guess}
+         Enum.count(unique_characters) > Enum.count(new_state.correct_letters) -> {new_state, :good_guess, guess}
+       end
+  end
+
+  defp change_state_bad_guess(state,guess) do
+
+    new_state = %GameState{state | incorrect_letters: state.incorrect_letters ++ [guess], lives_remaining: state.lives_remaining - 1}
+    cond do
+      new_state.lives_remaining == 0 -> {new_state, :lost, guess}
+      new_state.lives_remaining > 0 -> {new_state, :bad_guess, guess}
+    end
+
   end
 
  end
